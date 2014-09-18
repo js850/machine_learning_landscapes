@@ -176,11 +176,20 @@ class GMMPotential(BasePotential):
         self.gmm.covars_ = ca.get_covars_matrix()
     
     def getEnergy(self, params):
-        print params
+#        print params
         self.set_parameters(params)
         
-        logprob, responsibilities = self.gmm.score_samples(self.data)
-        return np.mean(logprob)
+        
+        forbidden_energy = 100000
+        try:
+            logprob, responsibilities = self.gmm.score_samples(self.data)
+        except np.linalg.LinAlgError:
+            print "hit linalg error"
+            return forbidden_energy
+        return -np.mean(logprob)
+
+def print_event(coords=None, **kwargs):
+    print coords
 
 def run(X_train):
     # fit a Gaussian Mixture Model with two components
@@ -189,12 +198,18 @@ def run(X_train):
     pot = GMMPotential(clf, X_train)
     params = pot.get_random_coords()
     print params
-    energy = pot.getEnergy(params)
-    print "energy", energy
     e, g = pot.getEnergyGradient(params)
+    print "energy", e
     print "grad", g
-    opt = LBFGS(params, pot, tol=1, iprint=1)
-    opt.run()
+    opt = LBFGS(params, pot, tol=1e-5, maxstep=1., iprint=1)#, events=[print_event])
+    res = opt.run()
+    
+    print "finished"
+    e, g = pot.getEnergyGradient(res.coords)
+    print "energy", e
+    print "grad"
+    print "grad", g
+
     
 #    raise Exception("exiting early")
     
