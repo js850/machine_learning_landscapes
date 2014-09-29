@@ -54,7 +54,7 @@ class BaseModel(object):
         if x==None:
             x = np.random.random(self.npoints)
 
-        y = self.model(x,self.params0) + np.random.normal(scale=self.sigma,size=self.npoints)
+        y = self.model_batch(x,self.params0) + np.random.normal(scale=self.sigma,size=self.npoints)
         
         return zip(x,y)
                 
@@ -76,15 +76,15 @@ class WaveModel(BaseModel):
         self.points = self.generate_points(x=self.xvals)
         
     def model(self,x,params):
-        
-        return np.exp(-params[0]*x) * np.sin(params[1]*x+params[2]) * np.cos(params[3]*x+params[4])
+        return np.exp(-params[0]*x) * np.sin(params[1]*x+params[2]) * np.sin(params[3]*x+params[4])
     
     def model_batch(self, x, params):
         """evaluate multiple data points at once
         
         this can be much faster than doing them individually
         """
-        return np.exp(-params[0]*x) * np.sin(params[1]*x + params[2]) * np.cos(params[3]*x + params[4])
+        #return np.exp(-params[0]*x) * np.sin(params[1]*x + params[2]) * np.cos(params[3]*x + params[4])
+        return np.exp(-params[0]*x) * np.sin(params[1]*x + params[2]) * np.sin(params[3]*x + params[4])
 
     def model_gradient_batch(self, x, params):
         """return a matrix of gradients at each point
@@ -97,8 +97,8 @@ class WaveModel(BaseModel):
         t1 = np.exp(-params[0]*x)
         t2 = np.sin(params[1]*x+params[2])
         t2der = np.cos(params[1]*x+params[2])
-        t3 = np.cos(params[3]*x+params[4])
-        t3der = -np.sin(params[3]*x+params[4])
+        t3 = np.sin(params[3]*x+params[4])
+        t3der = np.cos(params[3]*x+params[4])
         
         grad = np.zeros([params.size, x.size])
         grad[0,:] = -x * t1 * t2 * t3
