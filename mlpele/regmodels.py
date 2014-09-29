@@ -199,7 +199,6 @@ class ErrorFunction(BasePotential):
         return energy, grad.ravel()
         
 
-
 def do_nothing_mindist(x1, x2):
     # align the center of mases
     #dr = np.mean(x1) - np.mean(x2)
@@ -210,7 +209,79 @@ def do_nothing_mindist(x1, x2):
 def my_orthog_opt(vec,coords):
     
     return vec
+
+from regression_utils import TransformRegression,MeasureRegression
+
+class MinPermDistWaveModel(object):
     
+    def __init__(self, niter=10, verbose=False, tol=0.01, accuracy=0.01,
+                 phase_translations=[2,4],point_inversions=[1,2,3,4],perm_groups=[[1,2],[3,4]],
+                 measure=MeasureRegression(),transform=TransformRegression()):
+        self.niter = niter
+        
+        self.verbose = verbose
+        self.measure=measure
+        self.transform=transform
+        self.accuracy = accuracy
+        self.tol = tol
+
+        self.phase_translations = np.array(phase_translations)
+        self.point_inversions = np.array(point_inversions)
+        self.perm_groups = np.array(perm_groups)
+        
+    def check_discrete_translational_symmetry(self,x1, x2):
+        """ paramlist:
+            list of parameter indices with symmetry about translation by  2*pi*n
+        """
+        for p in self.phase_translations:
+            eps = np.abs(x2[p]-x1[p])/(2*np.pi)
+            x2[p] -= np.floor(eps)*2*np.pi
+        dist = np.linalg.norm(x2 - x1)
+        return dist, x2
+    
+    def __call__(self,coords1,coords2):
+        
+        # we don't want to change the given coordinates
+        check_inversion = False
+        coords1 = coords1.copy()
+        coords2 = coords2.copy()
+        
+        x1 = np.copy(coords1)
+        x2 = np.copy(coords2)
+    
+        self.distbest = self.measure.get_dist(x1, x2)
+        self.x2best = x2.copy()
+        
+        if self.distbest < self.tol:
+            return self.distbest, coords1, x2
+        
+        """translational symmetry of phase factors"""
+        dist,x2 = self.check_discrete_translational_symmetry(x1,x2)
+        if dist < self.distbest: 
+            self.distbest = dist
+            self.x2best = x2
+                
+        """permutational symmetry"""
+        self.transform.permute(x2,self.perm_groups)
+        dist = self.measure.get_dist(x1, x2)
+        if dist < self.distbest: 
+            self.distbest = dist
+            self.x2best = x2
+        if self.distbest < self.tol:
+            return self.distbest, coords1, x2        
+        
+        """point inversion symmetry"""
+        self.transform.invert(x2,self.point_inversions)
+        dist = self.measure.get_dist(x1, x2)
+        if dist < self.distbest: 
+            self.distbest = dist
+            self.x2best = x2
+        if self.distbest < self.tol:
+            return self.distbest, coords1, x2        
+        
+        
+        return self.distbest, coords1, self.x2best
+                    
 from pele.systems import BaseSystem
 from pele.mindist import MinPermDistAtomicCluster, ExactMatchAtomicCluster
 from pele.transition_states import orthogopt, orthogopt_translation_only
@@ -228,9 +299,10 @@ class RegressionSystem(BaseSystem):
     
     def get_mindist(self):
         # no permutations of parameters
-        return do_nothing_mindist
+        
+        #return mindist_with_discrete_phase_symmetry
         #permlist = []
-        #return MinPermDistAtomicCluster(permlist=permlist, niter=10)
+        return MinPermDistWaveModel( niter=10)
 
     def get_orthogonalize_to_zero_eigenvectors(self):
         return None
@@ -414,7 +486,7 @@ def main2():
     pot.test_potential(x0)
     step = RandomCluster(volume=1.0)
     bh = system.get_basinhopping(database=database, takestep=step,coords=x0,temperature = 10.0)
-    bh.run(5)
+    bh.run(20)
     
     
     # connect the minima
@@ -428,8 +500,14 @@ def main2():
         connect.connect()
         
         
-
-
+    make_disconnectivity_graph(database)
+    
+    for m in database.minima():
+        print m.energy,m.coords/(2*np.pi)
+        
+    m1 = database.minima()[0]
+    m2 = database.minima()[1]
+    print mindist_with_discrete_phase_symmetry(m1.coords,m2.coords)[0]
 
 
 if __name__ == "__main__":
