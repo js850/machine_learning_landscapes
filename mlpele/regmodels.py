@@ -188,6 +188,14 @@ class RegressionSystem(BaseSystem):
         mindist = self.get_mindist()
         return lambda x1, x2: mindist(x1, x2)[0] < 1e-3
 
+    def get_pgorder(self,*args):
+        return 1;
+    def get_nzero_modes(self,*args):
+        return 0
+    def get_metric_tensor(self, coords):
+        return np.eye(len(coords))
+
+
 def myMinimizer(coords,pot,**kwargs):
     from pele.optimize import lbfgs_cpp as quench
     #print coords
@@ -238,10 +246,21 @@ def make_disconnectivity_graph(database):
     plt.show()
 
 
+
+def run_fvib_calc(system,database):
+    
+    from pele.thermodynamics._utils import get_thermodynamic_information
+    
+    get_thermodynamic_information(system,database,nproc=None)
+    
+    for m in database.minima():
+        print m.energy, m.pgorder, m.fvib
+    
 if __name__ == "__main__":
     
-    params=[0.1,1.0,0.0,0.0,0.0]
-    model = WaveModel(params0=params,sigma=0.1)
+    params=[0.4,1.0,0.0,4.0,2.0]
+    #params=[0.1,1.0,0.0,0.0,0.0]
+    model = WaveModel(params0=params,sigma=0.01,npoints=100)
     mysys, database = run_basinhopping(model,10)
 
     #multiple = False
@@ -251,12 +270,13 @@ if __name__ == "__main__":
     #    if len(database.minima()) > 1: multiple=True
     
     for m in database.minima():
-        x = np.array(mysys.model.points)[:,0]
-        plt.plot(x,[mysys.model.model(xi,m.coords) for xi in x],'o')
+        #x = np.array(mysys.model.points)[:,0]
+        x = np.arange(0.,3*np.pi,0.01)
+        plt.plot(x,[mysys.model.model(xi,m.coords) for xi in x],'--')
 
-    plt.plot(x,np.array(mysys.model.points)[:,1],'x')#
+    plt.plot(np.array(mysys.model.points)[:,0],np.array(mysys.model.points)[:,1],'x')#
 
-    plt.plot(x,mysys.model.model(x,mysys.model.params0),'x')
+    plt.plot(x,mysys.model.model(x,mysys.model.params0),'o')
     plt.show()
     #print mysys.model.points
     #np.savetxt("points",mysys.model.points)
@@ -268,6 +288,7 @@ if __name__ == "__main__":
     #exit()
     #run_double_ended_connect(mysys, database)
     #make_disconnectivity_graph(database)
+    run_fvib_calc(mysys,database)
     
     for m in database.minima():
         print m.coords
