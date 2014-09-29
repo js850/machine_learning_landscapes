@@ -2,11 +2,13 @@
 an example of how to create a new potential.
 """
 import numpy as np
-from pele.potentials import BasePotential
-from pele.takestep import RandomDisplacement,RandomCluster
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
+
+from pele.potentials import BasePotential
+from pele.takestep import RandomDisplacement, RandomCluster
+from pele.landscape import ConnectManager
 
 def generate_points_on_circle(self,R=1.0):
     
@@ -74,8 +76,38 @@ class WaveModel(BaseModel):
         self.points = self.generate_points(x=self.xvals)
         
     def model(self,x,params):
-        
         return np.exp(-params[0]*x) * np.sin(params[1]*x+params[2]) * np.cos(params[3]*x+params[4])
+    
+    def model_batch(self, x, params):
+        """evaluate multiple data points at once
+        
+        this can be much faster than doing them individually
+        """
+        return np.exp(-params[0]*x) * np.sin(params[1]*x + params[2]) * np.cos(params[3]*x + params[4])
+
+    def model_gradient_batch(self, x, params):
+        """return a matrix of gradients at each point
+        
+        Returns
+        -------
+        grad : array
+            grad[i,j] is the gradient w.r.t. param[i] at point[j]
+        """
+        t1 = np.exp(-params[0]*x)
+        t2 = np.sin(params[1]*x+params[2])
+        t2der = np.cos(params[1]*x+params[2])
+        t3 = np.cos(params[3]*x+params[4])
+        t3der = -np.sin(params[3]*x+params[4])
+        
+        grad = np.zeros([params.size, x.size])
+        grad[0,:] = -x * t1 * t2 * t3
+        
+        grad[1,:] = x * t1 * t2der * t3
+        grad[2,:] = t1 * t2der * t3
+        grad[3,:] = x * t1 * t2 * t3der
+        grad[4,:] = t1 * t2 * t3der
+        
+        return grad
         
                
 class PolynomialModel(BaseModel):
@@ -124,22 +156,47 @@ class ErrorFunction(BasePotential):
     V(xi,yi|alpha) = 0.5 * (yi-(f(xi|alpha))**2
     where 
     """
-    def __init__(self,model):
+    def __init__(self, model):
         """ instance of model to fit"""
         self.model = model
-        self.points = self.model.points
+        self.points = np.array(self.model.points).reshape([-1,2])
+
+    def getEnergyBatch(self, params):
+        x = self.points[:,0]
+        y = self.points[:,1]
+        model_x = self.model.model_batch(x, params)
         
+        E = 0.5 * np.sum((y - model_x)**2)
+        return E
                 
-    def getEnergy(self,params):
-        
+    def getEnergy(self, params):
+        """return the derivative of the error function with respect to the params"""
+        if hasattr(self.model, "model_batch"):
+            return self.getEnergyBatch(params)
         E = 0.
         for xi,yi in self.points:
             E += 0.5 * (yi - self.model.model(xi,params))**2
         
         # regularization
         #E = E + 0.1*np.dot(params,params)
-        
         return E
+
+    def getEnergyGradient(self, params):
+        if not hasattr(self.model, "model_gradient_batch"):
+            return self.getEnergy(params), self.NumericalDerivative(params)
+        
+        x = self.points[:,0]
+        y = self.points[:,1]
+        model_y = self.model.model_batch(x, params)
+        energy = 0.5 * np.sum((y - model_y)**2)
+
+        model_grad = self.model.model_gradient_batch(x, params)
+        
+        grad = -model_grad.dot(y - model_y)
+        assert grad.size == params.size
+        
+        return energy, grad.ravel()
+        
 
 
 def do_nothing_mindist(x1, x2):
@@ -163,7 +220,7 @@ class RegressionSystem(BaseSystem):
         super(RegressionSystem, self).__init__()
         self.model = model
         self.params.database.accuracy =0.01
-        #self.params.double_ended_connect.local_connect.tsSearchParams.hessian_diagonalization = True
+        self.params.double_ended_connect.local_connect_params.tsSearchParams.hessian_diagonalization = True
 
     def get_potential(self):
         return ErrorFunction(self.model)
@@ -194,7 +251,7 @@ def myMinimizer(coords,pot,**kwargs):
     return quench(coords,pot,**kwargs)
 
 
-def run_basinhopping(model,nsteps):
+def run_basinhopping(model, nsteps):
     
 
     system = RegressionSystem(model)
@@ -237,9 +294,7 @@ def make_disconnectivity_graph(database):
     dg.plot()
     plt.show()
 
-
-if __name__ == "__main__":
-    
+def main():    
     params=[0.1,1.0,0.0,0.0,0.0]
     model = WaveModel(params0=params,sigma=0.1)
     mysys, database = run_basinhopping(model,10)
@@ -342,3 +397,40 @@ if __name__ == "__main__":
 
     #plt.plot(fit[0],fit[1])
     #plt.show()
+
+def main2():
+    """a copy of main to clean it up a bit"""
+    np.random.seed(0)
+    params=[0.1,1.0,0.0,0.0,0.0]
+    model = WaveModel(params0=params,sigma=0.1)
+    system = RegressionSystem(model)
+    database = system.create_database()
+    pot = system.get_potential()
+
+    # do basinhopping
+    x0 = np.random.uniform(0.,3,[model.nparams])
+    print pot.getEnergy(x0)
+    pot.test_potential(x0)
+    step = RandomCluster(volume=1.0)
+    bh = system.get_basinhopping(database=database, takestep=step,coords=x0,temperature = 10.0)
+    bh.run(5)
+    
+    
+    # connect the minima
+    manager = ConnectManager(database, strategy="gmin")
+    for i in xrange(2):
+        try:
+            m1, m2 = manager.get_connect_job()
+        except manager.NoMoreConnectionsError:
+            break
+        connect = system.get_double_ended_connect(m1, m2, database)
+        connect.connect()
+        
+        
+
+
+
+
+if __name__ == "__main__":
+    main2()
+    
