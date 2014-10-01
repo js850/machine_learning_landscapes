@@ -83,8 +83,9 @@ class WaveModel(BaseModel):
         
         this can be much faster than doing them individually
         """
-        #return np.exp(-params[0]*x) * np.sin(params[1]*x + params[2]) * np.cos(params[3]*x + params[4])
+
         return np.exp(-params[0]*x) * np.sin(params[1]*x + params[2]) * np.sin(params[3]*x + params[4])
+        #return np.exp(-params[0]*x) * np.sin(params[1]*x + params[2])
 
     def model_gradient_batch(self, x, params):
         """return a matrix of gradients at each point
@@ -185,7 +186,6 @@ class ErrorFunction(BasePotential):
     def getEnergyGradient(self, params):
         if not hasattr(self.model, "model_gradient_batch"):
             return self.getEnergy(params), self.NumericalDerivative(params)
-        
         x = self.points[:,0]
         y = self.points[:,1]
         model_y = self.model.model_batch(x, params)
@@ -234,8 +234,8 @@ class MinPermDistWaveModel(object):
             list of parameter indices with symmetry about translation by  2*pi*n
         """
         for p in self.phase_translations:
-            eps = np.abs(x2[p]-x1[p])/(2*np.pi)
-            x2[p] -= np.floor(eps)*2*np.pi
+            eps = np.abs(x2[p]-x1[p])/(np.pi)
+            x2[p] -= np.floor(eps)*np.pi
         dist = np.linalg.norm(x2 - x1)
         return dist, x2
     
@@ -254,26 +254,34 @@ class MinPermDistWaveModel(object):
         
         if self.distbest < self.tol:
             return self.distbest, coords1, x2
+        print "begin: ", self.distbest
         
         """translational symmetry of phase factors"""
-        dist,x2 = self.check_discrete_translational_symmetry(x1,x2)
-        if dist < self.distbest: 
-            self.distbest = dist
-            self.x2best = x2
+        #dist,x2 = self.check_discrete_translational_symmetry(x1,x2)
+        #if dist < self.distbest: 
+        #    print "translational improvement!"
+        #    self.distbest = dist
+        #    self.x2best = x2
                 
         """permutational symmetry"""
-        self.transform.permute(x2,self.perm_groups)
+        print x2
+        x2 = self.transform.permute(x2,self.perm_groups)
         dist = self.measure.get_dist(x1, x2)
-        if dist < self.distbest: 
+        print "perm: ", dist
+        if dist < self.distbest:
+            print "permutational improvement!"
             self.distbest = dist
             self.x2best = x2
         if self.distbest < self.tol:
             return self.distbest, coords1, x2        
         
         """point inversion symmetry"""
-        self.transform.invert(x2,self.point_inversions)
+        x2 = self.transform.invert(x2,self.point_inversions)
         dist = self.measure.get_dist(x1, x2)
+        print "inv: ", dist
         if dist < self.distbest: 
+            print "point inversion improvement!"
+            print self.point_inversions
             self.distbest = dist
             self.x2best = x2
         if self.distbest < self.tol:
@@ -368,7 +376,7 @@ def make_disconnectivity_graph(database):
     plt.show()
 
 def main():    
-    params=[0.1,1.0,0.0,0.0,0.0]
+    params=[0.1,1.0,0.0,0.0,0.5*np.pi]
     model = WaveModel(params0=params,sigma=0.1)
     mysys, database = run_basinhopping(model,10)
 
@@ -378,11 +386,13 @@ def main():
     #    multiple=True
     #    if len(database.minima()) > 1: multiple=True
     
+    x = np.arange(0.0,3*np.pi,0.01)
+    print "Number of minima: ",database.number_of_minima()
     for m in database.minima():
-        x = np.array(mysys.model.points)[:,0]
-        plt.plot(x,[mysys.model.model(xi,m.coords) for xi in x],'o')
+        print m.energy
+        plt.plot(x,[mysys.model.model(xi,m.coords) for xi in x],'--')
 
-    plt.plot(x,np.array(mysys.model.points)[:,1],'x')#
+    plt.plot(np.array(mysys.model.points)[:,0],np.array(mysys.model.points)[:,1],'x')#
 
     plt.plot(x,mysys.model.model(x,mysys.model.params0),'x')
     plt.show()
@@ -474,7 +484,9 @@ def main():
 def main2():
     """a copy of main to clean it up a bit"""
     np.random.seed(0)
-    params=[0.1,1.0,0.0,0.0,0.0]
+    #params=[0.1,1.0,0.0,0.0,0.0]
+    #params=[0.1,1.0,0.0]
+    params=[0.1,1.0,0.0,0.0,0.5*np.pi]
     model = WaveModel(params0=params,sigma=0.1)
     system = RegressionSystem(model)
     database = system.create_database()
@@ -486,28 +498,44 @@ def main2():
     pot.test_potential(x0)
     step = RandomCluster(volume=1.0)
     bh = system.get_basinhopping(database=database, takestep=step,coords=x0,temperature = 10.0)
-    bh.run(20)
+    bh.run(100)
     
+    mindist = system.get_mindist()
+
+    for j,m in enumerate(database.minima()):
+        for i,mi in enumerate(database.minima()):
+            distbest,c,minew = mindist(m.coords,mi.coords)
+            if distbest-np.linalg.norm(mi.coords-m.coords) != 0.:
+                print j,i,distbest,np.linalg.norm(mi.coords-m.coords),"\n",mi.coords,"\n",minew
+            
+        #print m.energy,m.coords
+        
+    for m in database.minima():
+        print m.energy,m.coords    
+    
+    m0 = database.minima()[0]
+    m1 = database.minima()[1]
+    mindist(m0.coords,m1.coords)
     
     # connect the minima
     manager = ConnectManager(database, strategy="gmin")
-    for i in xrange(2):
+    for i in xrange(3):
         try:
             m1, m2 = manager.get_connect_job()
         except manager.NoMoreConnectionsError:
             break
         connect = system.get_double_ended_connect(m1, m2, database)
         connect.connect()
-        
+
+
+    for m in database.minima():
+        print m.energy,m.coords         
         
     make_disconnectivity_graph(database)
-    
-    for m in database.minima():
-        print m.energy,m.coords/(2*np.pi)
+
         
     m1 = database.minima()[0]
     m2 = database.minima()[1]
-    print mindist_with_discrete_phase_symmetry(m1.coords,m2.coords)[0]
 
 
 if __name__ == "__main__":
