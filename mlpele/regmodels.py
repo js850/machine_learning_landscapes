@@ -331,14 +331,33 @@ def myMinimizer(coords,pot,**kwargs):
     #print coords
     return quench(coords,pot,**kwargs)
 
+def plot_curve(database,system,n=5):
+    
+    import matplotlib.pyplot as plt
+    
+    x = np.arange(0.0,3*np.pi,0.01)
+    print "Number of minima: ",database.number_of_minima()
+    step = int(database.number_of_minima()/n)
+    print step
+    for mi,m in enumerate(database.minima()):
+        print m.energy
+        if mi%step == 0:
+            plt.plot(x,[system.model.model(xi,m.coords) for xi in x],'--',color='black')
 
+    plt.plot(np.array(system.model.points)[:,0],np.array(system.model.points)[:,1],'x',
+             ms=25,lw=4,color='red')#
+
+    plt.plot(x,system.model.model(x,system.model.params0),'x')
+    #plt.legend([str(m.energy) for m in database.minima()])
+    plt.show()
+    
 def run_basinhopping(model, nsteps):
     
 
     system = RegressionSystem(model)
     #print system.get_potential().getEnergy(alpha)
 
-    database = system.create_database()
+    database = system.create_database(db="/home/ab2111/mydb.sqlite")
     #x0 = np.random.uniform(-1,1,[porder])
     x0 = np.random.uniform(0.,3,[model.nparams])
     
@@ -376,9 +395,19 @@ def make_disconnectivity_graph(database):
     plt.show()
 
 def main():    
+    np.random.seed(0)
     params=[0.1,1.0,0.0,0.0,0.5*np.pi]
     model = WaveModel(params0=params,sigma=0.1)
-    mysys, database = run_basinhopping(model,10)
+    mysys, database = run_basinhopping(model,20)
+
+    from regression_utils import SymmetryChecker
+
+    for m in database.minima():
+        print m.energy,m.coords
+    
+    #checker = SymmetryChecker(database)
+    #checker.check()
+    #mysys.create_database(db=database,compareMinima=True)
 
     #multiple = False
     #while multiple==False:
@@ -386,16 +415,7 @@ def main():
     #    multiple=True
     #    if len(database.minima()) > 1: multiple=True
     
-    x = np.arange(0.0,3*np.pi,0.01)
-    print "Number of minima: ",database.number_of_minima()
-    for m in database.minima():
-        print m.energy
-        plt.plot(x,[mysys.model.model(xi,m.coords) for xi in x],'--')
-
-    plt.plot(np.array(mysys.model.points)[:,0],np.array(mysys.model.points)[:,1],'x')#
-
-    plt.plot(x,mysys.model.model(x,mysys.model.params0),'x')
-    plt.show()
+    plot_curve(database,mysys)
     #print mysys.model.points
     #np.savetxt("points",mysys.model.points)
     
@@ -489,7 +509,7 @@ def main2():
     params=[0.1,1.0,0.0,0.0,0.5*np.pi]
     model = WaveModel(params0=params,sigma=0.1)
     system = RegressionSystem(model)
-    database = system.create_database()
+    database = system.create_database(db="/home/ab2111/mydb.sqlite")
     pot = system.get_potential()
 
     # do basinhopping
@@ -502,11 +522,11 @@ def main2():
     
     mindist = system.get_mindist()
 
-    for j,m in enumerate(database.minima()):
-        for i,mi in enumerate(database.minima()):
-            distbest,c,minew = mindist(m.coords,mi.coords)
-            if distbest-np.linalg.norm(mi.coords-m.coords) != 0.:
-                print j,i,distbest,np.linalg.norm(mi.coords-m.coords),"\n",mi.coords,"\n",minew
+    #for j,m in enumerate(database.minima()):
+    #    for i,mi in enumerate(database.minima()):
+    #        distbest,c,minew = mindist(m.coords,mi.coords)
+    #        if distbest-np.linalg.norm(mi.coords-m.coords) != 0.:
+    #            print j,i,distbest,np.linalg.norm(mi.coords-m.coords),"\n",mi.coords,"\n",minew
             
         #print m.energy,m.coords
         
@@ -530,7 +550,10 @@ def main2():
 
     for m in database.minima():
         print m.energy,m.coords         
-        
+    
+    database.session.commit()
+    exit()    
+    
     make_disconnectivity_graph(database)
 
         
@@ -539,5 +562,5 @@ def main2():
 
 
 if __name__ == "__main__":
-    main2()
+    main()
     
