@@ -4,15 +4,19 @@ import matplotlib.pyplot as plt
 from gaussian_process_examples import periodic_kernal,squared_exponential
 
 class TrainingSet():
-    def __init__(self,points=[],genpoints=None):
+    def __init__(self,points=[],genpoints=None,noise=0.1):
         self.points = np.array(points)
+        self.noise = noise
         if genpoints != None: 
             self.initialize_array()
             self.get_points(n=genpoints)
     
+    def model(self,x):
+        return np.sin(2.*np.pi*x)
+    
     def initialize_array(self):
         x=np.random.random()        
-        self.points = np.array([[x,np.sin(2.*np.pi*x)+0.1*np.random.normal()]])
+        self.points = np.array([[x,self.model(x)+self.noise*np.random.normal()]])
     
     def get_points(self,n=1):
         for i in xrange(n): self.gen_new_point()
@@ -20,7 +24,7 @@ class TrainingSet():
     def gen_new_point(self,x=None):
         if x==None:
             x=np.random.random()
-        self.points = np.concatenate((self.points,[[x,np.sin(2.*np.pi*x)+0.1*np.random.normal()]]))
+        self.points = np.concatenate((self.points,[[x,self.model(x)+self.noise*np.random.normal()]]))
             
 class GaussianProcess():
     def __init__(self,ts,beta=1.0,p=1.0,l=1.0):
@@ -34,13 +38,13 @@ class GaussianProcess():
     def compute_kernel(self,xlist,x):
         
         if type(xlist) is np.float64:
-            #return self.kernel(xlist,x,L=self.l_kernel)
-            return self.kernel(xlist,x,l=self.l_kernel,p=self.p_kernel)
+            return self.kernel(xlist,x,L=self.l_kernel)
+            #return self.kernel(xlist,x,l=self.l_kernel,p=self.p_kernel)
         
         K=np.array([])
         for i,xi in enumerate(xlist):
-            #K = np.append(K,self.kernel(xi,x,L=self.l_kernel))
-            K = np.append(K,self.kernel(xi,x,l=self.l_kernel,p=self.p_kernel))
+            K = np.append(K,self.kernel(xi,x,L=self.l_kernel))
+            #K = np.append(K,self.kernel(xi,x,l=self.l_kernel,p=self.p_kernel))
             #K[i] = squared_exponential(xi,x,L=self.l_kernel)
         
         return K
@@ -48,7 +52,8 @@ class GaussianProcess():
         #return squared_exponential(*args,L=self.l_kernel)
     
     def kernel(self,*args,**kwargs):
-        return periodic_kernal(*args,**kwargs)
+        #return periodic_kernal(*args,**kwargs)
+        return squared_exponential(*args,**kwargs)
     
     def run(self,niterations):
         for i in xrange(niterations):
@@ -116,21 +121,37 @@ class GaussianProcess():
             mu,var = self.query_point(x)
             vals[i,:] = x,mu,var
             #vals = np.append(vals,[x,mu,val])
-    
-        plt.plot(vals[:,0],vals[:,1])    
+     
         plt.plot(self.ts.points[:,0],self.ts.points[:,1],'x')
-
+        plt.ylim([-1.5,1.5])
+        #plt.show()
+        #exit()
+        
 def main():
     ts = TrainingSet(genpoints=1)
 
-    gp = GaussianProcess(ts,l=0.5,p=1.0,beta=0.01)
+    gp = GaussianProcess(ts,l=1.0,p=1.0,beta=ts.noise)
+    #gp.run(100)
+
     
-    for i in range(5,20,2):
+    for i in range(6,20,2):
         gp.run(2)
     
         x = np.arange(0,1.0,0.01)
 
         gp.generate_curve(x)
+        plt.plot(x,gp.ts.model(x),'--')
+
+        #evals = np.linalg.eigvals(gp.C)
+        #plt.plot(evals)
+    
+    evals,evecs = np.linalg.eig(gp.C)
+    
+    print evals[-1]
+    print evecs[:,-1]
+    exit()
+    #plt.yscale('log')
+    plt.ylim([-1.5,1.5])
     plt.show()
 
 
