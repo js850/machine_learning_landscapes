@@ -23,9 +23,12 @@ class TrainingSet():
     
     def gen_new_point(self,x=None):
         if x==None:
+            #x = gen_biased_x()
             x=np.random.random()
+            if 0.7 <= x <= 0.8 and np.random.random()<0.99:
+                x = x - 0.2
         self.points = np.concatenate((self.points,[[x,self.model(x)+self.noise*np.random.normal()]]))
-            
+    
 class GaussianProcess():
     def __init__(self,ts,beta=1.0,p=1.0,l=1.0):
         self.ts = ts
@@ -78,6 +81,7 @@ class GaussianProcess():
         for i,xi in enumerate(x):
             for j,xj in enumerate(x):
                 C[i,j] = self.compute_kernel(xi,xj)
+                if i==j: C[i,j] += 1./self.beta
         
         return C
         
@@ -87,13 +91,16 @@ class GaussianProcess():
         xlast = self.ts.points[-1,0]
         K = self.compute_kernel(self.ts.points[:,0],xlast)
 
-        c = self.compute_kernel(xlast,xlast) + self.beta
-        
+        #c = self.compute_kernel(xlast,xlast) + 1./self.beta
+        #print self.C
+        #print K
         self.C = np.append(self.C,[K[:-1]],axis=0)
         self.C = np.append(self.C,np.array([K]).T,axis=1)
+        self.C[-1,-1] += 1./self.beta
         
         print "det: ", np.linalg.det(self.C),np.shape(self.C)
         
+        #exit()
         
     def query_point(self,x):
         
@@ -122,19 +129,31 @@ class GaussianProcess():
             vals[i,:] = x,mu,var
             #vals = np.append(vals,[x,mu,val])
      
+        plt.plot(vals[:,0],vals[:,1])
+        plt.plot(vals[:,0],vals[:,1]+np.sqrt(vals[:,2]))
+        plt.plot(vals[:,0],vals[:,1]-np.sqrt(vals[:,2]))
         plt.plot(self.ts.points[:,0],self.ts.points[:,1],'x')
-        plt.ylim([-1.5,1.5])
+        #plt.ylim([-1.5,1.5])
         #plt.show()
         #exit()
         
 def main():
-    ts = TrainingSet(genpoints=1)
+    ts = TrainingSet(genpoints=100,noise=0.1)
 
-    gp = GaussianProcess(ts,l=1.0,p=1.0,beta=ts.noise)
-    #gp.run(100)
+    x = np.arange(0,1.0,0.01)
 
+    #for l in np.arange(0.05,1.,0.15):
+    #    
+    #    gp = GaussianProcess(ts,l=l,p=1.0,beta=ts.noise)
+    #    plt.plot(x,gp.ts.model(x),'--')
+    #    gp.generate_curve(x)
+    gp = GaussianProcess(ts,l=0.2,p=1.0,beta=1./ts.noise)
+    #plt.plot(x,gp.ts.model(x),'--')
+    gp.generate_curve(x)
+    plt.show()
+    exit()
     
-    for i in range(6,20,2):
+    for i in range(6,8,2):
         gp.run(2)
     
         x = np.arange(0,1.0,0.01)
@@ -145,11 +164,11 @@ def main():
         #evals = np.linalg.eigvals(gp.C)
         #plt.plot(evals)
     
-    evals,evecs = np.linalg.eig(gp.C)
+    #evals,evecs = np.linalg.eig(gp.C)
     
-    print evals[-1]
-    print evecs[:,-1]
-    exit()
+    #print evals[-1]
+    #print evecs[:,-1]
+    #exit()
     #plt.yscale('log')
     plt.ylim([-1.5,1.5])
     plt.show()
