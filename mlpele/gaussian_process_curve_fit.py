@@ -30,38 +30,29 @@ class TrainingSet():
         self.points = np.concatenate((self.points,[[x,self.model(x)+self.noise*np.random.normal()]]))
     
 class GaussianProcess():
-    def __init__(self,ts,beta=1.0,p=1.0,l=1.0):
+    def __init__(self,ts,kernel=None,beta=1.0):
         self.ts = ts
         self.beta = beta
-        self.p_kernel = p
-        self.l_kernel = l
-        #self.kernel = kernel
+        self.kernel = kernel
+
         self.C = self.initialize_covariance_matrix()
         
     def compute_kernel(self,xlist,x):
         
         if type(xlist) is np.float64:
-            return self.kernel(xlist,x,L=self.l_kernel)
-            #return self.kernel(xlist,x,l=self.l_kernel,p=self.p_kernel)
+            return self.kernel(xlist,x)
         
         K=np.array([])
         for i,xi in enumerate(xlist):
-            K = np.append(K,self.kernel(xi,x,L=self.l_kernel))
-            #K = np.append(K,self.kernel(xi,x,l=self.l_kernel,p=self.p_kernel))
-            #K[i] = squared_exponential(xi,x,L=self.l_kernel)
-        
+            K = np.append(K,self.kernel(xi,x))
+       
         return K
-        #return periodic_kernal(*args,l=self.l_kernel,p=self.p_kernel)
-        #return squared_exponential(*args,L=self.l_kernel)
-    
-    def kernel(self,*args,**kwargs):
-        #return periodic_kernal(*args,**kwargs)
-        return squared_exponential(*args,**kwargs)
+
     
     def run(self,niterations):
         for i in xrange(niterations):
             self.run_single_iteration()
-            #if i % 10==0: self.visualize()
+
     def run_single_iteration(self):
         self.get_new_point()
         self.update_covariance_matrix()
@@ -104,14 +95,8 @@ class GaussianProcess():
         
     def query_point(self,x):
         
-
         Cinv = np.linalg.inv(self.C)
-
-        #print Cinv
-        #print self.C
-
         t = self.ts.points[:,1]
-
         k_me = self.compute_kernel(self.ts.points[:,0],x)
         c = self.compute_kernel(x,x)+1./self.beta
         
@@ -139,15 +124,17 @@ class GaussianProcess():
         
 def main():
     ts = TrainingSet(genpoints=100,noise=0.1)
-
+    
+    l=0.4
+    p=1.1
+    
+    #kernel = lambda x1,x2 : squared_exponential(x1,x2,L=l)
+    kernel = lambda x1,x2 : periodic_kernal(x1,x2,l=l,p=p)
+    
     x = np.arange(0,1.0,0.01)
 
-    #for l in np.arange(0.05,1.,0.15):
-    #    
-    #    gp = GaussianProcess(ts,l=l,p=1.0,beta=ts.noise)
-    #    plt.plot(x,gp.ts.model(x),'--')
-    #    gp.generate_curve(x)
-    gp = GaussianProcess(ts,l=0.2,p=1.0,beta=1./ts.noise)
+    gp = GaussianProcess(ts,kernel=kernel,beta=1./ts.noise)
+    
     #plt.plot(x,gp.ts.model(x),'--')
     gp.generate_curve(x)
     plt.show()
