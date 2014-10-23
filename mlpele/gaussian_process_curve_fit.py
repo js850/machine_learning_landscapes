@@ -6,6 +6,8 @@ from gaussian_process_examples import periodic_kernal,squared_exponential
 class TrainingSet():
     def __init__(self,points=[],genpoints=None,noise=0.1):
         self.points = np.array(points)
+        #self.points = np.zeros((2,0))
+
         self.noise = noise
         if genpoints != None: 
             self.initialize_array()
@@ -21,7 +23,7 @@ class TrainingSet():
     def get_points(self,n=1):
         for i in xrange(n): self.gen_new_point()
     
-    def gen_new_point(self,x=None):
+    def gen_new_point(self,x):
         if x==None:
             #x = gen_biased_x()
             x=np.random.random()
@@ -30,11 +32,13 @@ class TrainingSet():
         self.points = np.concatenate((self.points,[[x,self.model(x)+self.noise*np.random.normal()]]))
     
 class GaussianProcess():
-    def __init__(self,ts,kernel=None,beta=1.0):
+    def __init__(self,ts,kernel=None,system=None,db=None,beta=1.0):
         self.ts = ts
         self.beta = beta
         self.kernel = kernel
-
+        self.system = system
+        self.db = db
+        
         self.C = self.initialize_covariance_matrix()
         
     def compute_kernel(self,xlist,x):
@@ -47,24 +51,30 @@ class GaussianProcess():
             K = np.append(K,self.kernel(xi,x))
        
         return K
-
     
     def run(self,niterations):
         for i in xrange(niterations):
             self.run_single_iteration()
-
-    def run_single_iteration(self):
-        self.get_new_point()
+    
+    def run_single_iteration(self,x=None):
+        if self.system != None:
+            self.ts.gen_new_point(self.ts,self.system,self.db,x)
+        else:
+            self.ts.gen_new_point(x=x)
+        
         self.update_covariance_matrix()
     
-    def get_new_point(self,x=None):
-        return self.ts.gen_new_point()
+    #def get_new_point(self,x=None,**kwargs):
+    #    return self.ts.gen_new_point(x=x,**kwargs)
     
     def visualize(self):
         plt.plot(self.ts.points[:,0],self.ts.points[:,1],'x') 
         plt.show()
            
     def initialize_covariance_matrix(self):
+        
+        if np.size(self.ts.points)==0:
+            return np.zeros(shape=(0,0))
         
         x = self.ts.points[:,0]
         C = np.zeros(shape=(len(x),len(x)))
@@ -119,7 +129,7 @@ class GaussianProcess():
         plt.plot(vals[:,0],vals[:,1]-np.sqrt(vals[:,2]))
         plt.plot(self.ts.points[:,0],self.ts.points[:,1],'x')
         #plt.ylim([-1.5,1.5])
-        #plt.show()
+        plt.show()
         #exit()
         
 def main():
@@ -162,4 +172,5 @@ def main():
 
 
 if __name__=="__main__":
-    main()  
+    pass
+    #main()  
