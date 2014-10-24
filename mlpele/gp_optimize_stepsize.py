@@ -6,10 +6,14 @@ from gaussian_process_examples import periodic_kernal,squared_exponential
 from pele.systems import LJCluster
 from pele.takestep import RandomDisplacement
 
+natoms=13
+x0 = np.random.random(natoms*3)#.reshape(natoms,3)
+
+
 def initialize_system():
     
-    system = LJCluster(13)    
-    x0 = np.random.random(13*3)#.reshape(13,3)
+    system = LJCluster(natoms)    
+    x0 = np.random.random(natoms*3)#.reshape(natoms,3)
     db = system.create_database()
     step = RandomDisplacement(stepsize=1.0)
     bh = system.get_basinhopping(database=db, 
@@ -20,8 +24,7 @@ def initialize_system():
 
 def run_basinhopping(ts,system,db,x):
     
-    if x == None: x = 3.0*np.random.random()
-    x0 = np.random.random(13*3)#.reshape(13,3)
+    if x == None: x = 0.1*np.random.random()+0.003
     
     E0 = -44.5
     step = RandomDisplacement(stepsize=x)
@@ -32,8 +35,9 @@ def run_basinhopping(ts,system,db,x):
     while True:
         bh.run(1)
         eps = np.abs(bh.trial_energy/E0 - 1.)
-        print bh.trial_energy, 
+        print "\n\n",bh.trial_energy, bh.takeStep.stepsize,"\n\n"
         if eps < 0.02:
+            print "Finished\n\n",bh.trial_energy, bh.takeStep.stepsize
             print bh.trial_energy
             break
     
@@ -58,7 +62,7 @@ def main():
     gp = GaussianProcess(ts,kernel=kernel,system=system,beta=1.)
     #gp.get_new_point = lambda ts,bh,stepsize : run_basinhopping(ts,bh,x=stepsize)
     #gp.run_single_iteration = my_run_single_iteration
-    for i in xrange(100):
+    for i in xrange(200):
         gp.run(1)
 
     x = np.arange(0,10.0,0.1)
