@@ -5,14 +5,14 @@ import matplotlib.pyplot as plt
 
 # X = np.loadtxt("handwriting/X.dat")[:1000]
 # y = np.loadtxt("handwriting/y.dat")[:1000]
-X = np.loadtxt("handwriting/X2_100samples.dat")
-y = np.loadtxt("handwriting/y2_100samples.dat")
+X = np.loadtxt("../handwriting/X2_100samples.dat")
+y = np.loadtxt("../handwriting/y2_100samples.dat")
 
 conec = mlgraph((X.shape[1],20,1))
 
 Errors=[]
 
-for i in xrange(10):
+for i in xrange(3):
     net = ffnet(conec)
     # 
     # NX.draw_graphviz(net.graph, prog='dot')

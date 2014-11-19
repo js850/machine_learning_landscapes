@@ -94,8 +94,8 @@ def run_basinhopping(system,database,coords0,nsteps):
 
 def main():
     """ load training data"""
-    inputs  = np.loadtxt("handwriting/X2_100samples.dat")
-    targets = np.loadtxt("handwriting/y2_100samples.dat")
+    inputs  = np.loadtxt("../handwriting/X2_10samples.dat")
+    targets = np.loadtxt("../handwriting/y2_10samples.dat")
     
     """ define network topology """
     conec = mlgraph((inputs.shape[1],20,1))
