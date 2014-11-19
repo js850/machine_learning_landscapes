@@ -1,5 +1,5 @@
 import numpy as np
-from pygmin.potentials import BasePotential
+from pele.potentials import BasePotential
 
 def sigmoid(z):
     return 1.0 / (1.0 + np.exp(-z));
