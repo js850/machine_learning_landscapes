@@ -85,7 +85,7 @@ print inputs.shape
 net = ffnet(conec)
 system = NNSystem(net, inputs, targets)
         
-database = system.create_database(db="/home/ab2111/machine_learning_landscapes/neural_net/db_ffnet_100samples.sqlite")
+database = system.create_database(db="../db/db_ffnet_100samples.sqlite")
 
 # make_disconnectivity_graph(system, database, vinputs, vtargets)
 

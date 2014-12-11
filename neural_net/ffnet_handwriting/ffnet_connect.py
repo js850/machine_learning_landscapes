@@ -67,7 +67,7 @@ def main():
     
     database = system.create_database(
 #                     db="/home/ab2111/machine_learning_landscapes/neural_net/db_ffnet_100samples_reg"+str(reg) +".sqlite"
-                    db="/home/ab2111/machine_learning_landscapes/neural_net/db_ffnet_100samples.sqlite"
+                    db="../db/db_ffnet_100samples.sqlite"
                 )
     run_gui(system, database)
     
