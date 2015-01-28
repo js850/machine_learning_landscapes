@@ -128,6 +128,9 @@ class NNPotential(BasePotential):
             p.set_value(params_vec[i:i+npar].reshape(self.param_shapes[count]))
             i += npar
     
+    def getEnergy(self, params):
+        return self.getEnergyGradient(params)[0]
+        
     def getEnergyGradient(self, params):
         # the params are stored as shared variables so we have to update
         # them in memory before computing the cost.
@@ -141,6 +144,18 @@ class NNSystem(BaseSystem):
     def get_potential(self):
         return self.potential
 
+    def get_minimizer(self, **kwargs):
+        from pele.optimize import lbfgs_cpp as quench
+        return lambda coords: quench(coords, self.get_potential(),tol=1.0e-5,**kwargs)
+        #return lambda coords: myquench(coords, self.get_potential(),**kwargs)
+
+    def get_mindist(self):
+        # no permutations of parameters
+        return lambda x1,x2: (np.linalg.norm(x1-x2),x1,x2)
+        
+    def get_orthogonalize_to_zero_eigenvectors(self):
+        return None
+    
 def test():
     system = NNSystem()
     t = system.get_potential()
