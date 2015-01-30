@@ -18,15 +18,10 @@ from mlp import HiddenLayer, MLP
 
 
 def get_data():
-    print "hi"
+    
     dataset = "mnist.pkl.gz"
     with gzip.open(dataset) as f:
         train_set, valid_set, test_set = cPickle.load(f)
-    
-    print train_set
-    print train_set[0].shape
-    print 28*28
-    print train_set[1].shape
     
     # training data
     x = train_set[0]
@@ -36,17 +31,25 @@ def get_data():
     t = train_set[1]
     assert ndata == t.size
     
-    return train_set
+    # test data
+    test_x = test_set[0]
+    test_t = test_set[1].astype('int32')
+
+    return x, t, test_x, test_t
 
 
 class NNPotential(BasePotential):
     def __init__(self, ndata=1000, n_hidden=10, L1_reg=0.00, L2_reg=0.0001):
         
-        train_x, train_t = get_data()
+        train_x, train_t, test_x, test_t = get_data()
         train_x = train_x[:ndata,:]
         train_t = train_t[:ndata]
         train_t = np.asarray(train_t, dtype="int32")
     
+        self.L1_reg = L1_reg
+        self.L2_reg = L2_reg
+        
+        print "range of target values: ", set(train_t)
         # allocate symbolic variables for the data.  
         # Make it shared so it cab be passed only once 
         x = theano.shared(value=train_x, name='x')  # the data is presented as rasterized images
@@ -74,7 +77,7 @@ class NNPotential(BasePotential):
             + L1_reg * classifier.L1
             + L2_reg * classifier.L2_sqr
         )
-    
+
         # compute the gradient of cost with respect to theta (sotred in params)
         # the resulting gradients will be stored in a list gparams
         gparams = [T.grad(cost, param) for param in classifier.params]
@@ -85,6 +88,15 @@ class NNPotential(BasePotential):
                outputs=outputs
                )
         
+        # compute the errors applied to test set
+        self.theano_testset_errors = theano.function(
+               inputs=(),
+               outputs=self.classifier.errors(t),
+               givens={
+                       x: test_x,
+                       t: test_t
+                       }                                          
+               )
     #    res = get_gradient(train_x, train_t)
     #    print "result"
     #    print res
@@ -131,6 +143,11 @@ class NNPotential(BasePotential):
     def getEnergy(self, params):
         return self.getEnergyGradient(params)[0]
         
+    def getValidationError(self, params):
+        # returns the fraction of misassignments for test set
+        self.set_params(params)
+        return self.theano_testset_errors()
+        
     def getEnergyGradient(self, params):
         # the params are stored as shared variables so we have to update
         # them in memory before computing the cost.
@@ -139,6 +156,7 @@ class NNPotential(BasePotential):
 
 class NNSystem(BaseSystem):
     def __init__(self, *args, **kwargs):
+        super(NNSystem, self).__init__()
         self.potential = NNPotential(*args, **kwargs)
     
     def get_potential(self):
@@ -180,11 +198,6 @@ def test():
     from pele.optimize import lbfgs_py
     res = lbfgs_py(newparams, t, iprint=10, tol=1e-4)
     print res
-
-            
-        
-     
-    
 
 if __name__ == "__main__":
     test()
