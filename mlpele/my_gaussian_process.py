@@ -6,6 +6,16 @@ class GPPotential(BasePotential):
     def __init__(self, gaussian_process):
         self.gp = gaussian_process
         
+    def getValidationEnergy(self, coords, X, t):
+        """
+        returns: sum of squared errors of prediction
+        """
+        self.gp.set_params(coords)
+        
+        ypredict = np.array([self.gp.predict(x) for x in X])
+        
+        return 0.5 * (ypredict-t).dot(ypredict - t)
+        
     def getEnergy(self, coords):
         """ 
         returns: negative Log Likelihood of GP (Bishop Eq. 6.69)
@@ -130,6 +140,10 @@ class Kernel():
         self.Nparams = len(self._theta)
         
     def evaluate(self, X1, X2):
+        
+		# forbid theta < 0 by large energy penalty
+        if True in set(self._theta[1:]<0.):
+            return 10000.0
         """ return kernel evaluation """
         return self._theta[0] * np.exp(-0.5 * np.dot(self._theta[1:], (X1-X2)**2))
      
@@ -148,7 +162,7 @@ def minimize(pot, coords0):
 
     from pele.optimize import lbfgs_cpp as quench
     
-    return quench(coords0, pot, iprint=1, tol=1.0e-1)    
+    return quench(coords0, pot, iprint=1, tol=1.0e-3, nsteps=100)    
 
 def plot_predictions(gp, ttest, Xtest):
     
